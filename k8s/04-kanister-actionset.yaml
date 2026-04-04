@@ -1,0 +1,27 @@
+---
+# Profile - configure your backup location (S3, Azure, NFS etc.)
+# Replace with your actual location profile from kasten-io namespace
+apiVersion: cr.kanister.io/v1alpha1
+kind: ActionSet
+metadata:
+  name: arcadians-postgresql-backup
+  namespace: kasten-io
+spec:
+  actions:
+    - name: backup
+      blueprint: postgres-non-exclusive-backup
+      object:
+        kind: StatefulSet
+        name: arcadians-postgresql
+        namespace: retro-game
+      profile:
+        apiVersion: v1alpha1
+        kind: Profile
+        name: YOUR_PROFILE_NAME       # replace with your Kanister profile
+        namespace: kasten-io
+      secrets:
+        pgSecret:
+          apiVersion: v1
+          kind: Secret
+          name: arcadians-postgresql
+          namespace: retro-game

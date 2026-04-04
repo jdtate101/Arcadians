@@ -1,0 +1,119 @@
+---
+# Secret - named per Kanister blueprint convention:
+# {{ app.kubernetes.io/instance }}-postgresql
+apiVersion: v1
+kind: Secret
+metadata:
+  name: arcadians-postgresql
+  namespace: retro-game
+  labels:
+    app.kubernetes.io/instance: arcadians
+    app.kubernetes.io/name: postgresql
+type: Opaque
+stringData:
+  postgres-password: "ch4ng3m3!"
+---
+# Headless service for StatefulSet DNS
+apiVersion: v1
+kind: Service
+metadata:
+  name: arcadians-postgresql-headless
+  namespace: retro-game
+  labels:
+    app.kubernetes.io/instance: arcadians
+    app.kubernetes.io/name: postgresql
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/instance: arcadians
+    app.kubernetes.io/name: postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+---
+# ClusterIP service for application access
+apiVersion: v1
+kind: Service
+metadata:
+  name: arcadians-postgresql
+  namespace: retro-game
+  labels:
+    app.kubernetes.io/instance: arcadians
+    app.kubernetes.io/name: postgresql
+spec:
+  selector:
+    app.kubernetes.io/instance: arcadians
+    app.kubernetes.io/name: postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+---
+# StatefulSet - labels match Kanister blueprint requirements
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: arcadians-postgresql
+  namespace: retro-game
+  labels:
+    app.kubernetes.io/instance: arcadians
+    app.kubernetes.io/name: postgresql
+spec:
+  serviceName: arcadians-postgresql-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: arcadians
+      app.kubernetes.io/name: postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: arcadians
+        app.kubernetes.io/name: postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: arcadians
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: arcadians-postgresql
+                  key: postgres-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "arcadians"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "arcadians"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

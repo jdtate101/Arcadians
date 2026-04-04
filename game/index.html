@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ARCADIANS — BBC MICRO</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  width:100%;height:100%;background:#000;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;font-family:'Press Start 2P',monospace;
+}
+canvas{display:block;image-rendering:pixelated;}
+#overlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.93);z-index:10;overflow-y:auto;padding:10px 0;
+}
+#overlay.hidden{display:none;}
+.title{font-size:clamp(16px,4vw,32px);color:#ff0;
+  text-shadow:0 0 20px #ff0,3px 3px 0 #a80;
+  letter-spacing:6px;margin-bottom:6px;
+  animation:pulse 1.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.subtitle{font-size:clamp(6px,1.2vw,10px);color:#0ff;letter-spacing:3px;margin-bottom:14px;}
+.panel{border:2px solid #ff0;padding:10px;width:min(340px,85vw);margin-bottom:8px;}
+.panel h2{font-size:clamp(6px,1.5vw,9px);color:#ff0;text-align:center;
+  border-bottom:1px solid #ff0;padding-bottom:5px;margin-bottom:7px;}
+.score-row{display:flex;justify-content:space-between;
+  font-size:clamp(5px,1.1vw,8px);padding:3px 0;border-bottom:1px solid #222;}
+.score-row .rank{color:#f80;width:22px;}
+.score-row .name{color:#fff;width:80px;}
+.score-row .pts{color:#0f0;}
+.score-row .wave{color:#f0f;font-size:clamp(4px,0.9vw,7px);}
+.pts-table{font-size:clamp(5px,1vw,7px);}
+.pts-row{display:flex;justify-content:space-between;padding:3px 0;color:#0ff;}
+.pts-row span:first-child{color:#ff0;}
+.controls-grid{display:grid;grid-template-columns:auto 1fr;
+  gap:3px 10px;font-size:clamp(4px,0.9vw,7px);}
+.ctrl-key{color:#f80;}.ctrl-act{color:#0ff;}
+.blink{animation:blink .7s step-end infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.press{font-size:clamp(7px,1.5vw,11px);color:#fff;margin-top:12px;}
+#gooverlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.93);z-index:10;
+}
+#gooverlay.hidden{display:none;}
+.go-title{font-size:clamp(18px,5vw,40px);color:#f00;
+  text-shadow:0 0 30px #f00;margin-bottom:8px;}
+.go-score{font-size:clamp(8px,2vw,14px);color:#ff0;margin-bottom:20px;}
+.go-form{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.go-form label{font-size:clamp(5px,1.1vw,8px);color:#0ff;}
+#initials{background:#000;border:2px solid #ff0;color:#ff0;
+  font-family:'Press Start 2P',monospace;font-size:clamp(14px,3vw,22px);
+  text-align:center;width:110px;padding:8px;text-transform:uppercase;
+  letter-spacing:10px;}
+#initials:focus{outline:none;box-shadow:0 0 12px #ff0;}
+#submitbtn{background:#ff0;color:#000;border:none;
+  font-family:'Press Start 2P',monospace;font-size:clamp(6px,1.2vw,9px);
+  padding:10px 18px;cursor:pointer;}
+#submitbtn:hover{background:#fff;}
+#submitstatus{font-size:clamp(5px,1vw,7px);min-height:14px;margin-top:4px;}
+#mission{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:#000;z-index:10;color:#fff;
+}
+#mission.hidden{display:none;}
+.mission-title{font-size:clamp(10px,2.5vw,18px);color:#ff0;margin-bottom:20px;letter-spacing:4px;}
+.mission-body{font-size:clamp(6px,1.3vw,10px);color:#0ff;text-align:center;line-height:2.5;}
+.mission-pts{margin-top:16px;}
+.mission-pts table{border-collapse:collapse;}
+.mission-pts td{padding:3px 12px;font-size:clamp(5px,1.1vw,8px);color:#ff0;}
+.mission-pts td:first-child{color:#0ff;}
+#scanlines{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+    rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px);
+  pointer-events:none;z-index:50;
+}
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="title">ARCADIANS</div>
+  <div class="subtitle">BBC MICRO EDITION</div>
+  <div class="panel">
+    <h2>★ ARCADIAN HI-SCORES ★</h2>
+    <div id="scorelist"><div style="text-align:center;font-size:7px;color:#555">LOADING...</div></div>
+  </div>
+  <div class="panel">
+    <h2>SCORE TABLE</h2>
+    <div class="pts-table">
+      <div class="pts-row"><span>CHARGER (DIVING)</span><span>100</span></div>
+      <div class="pts-row"><span>CONVOY  (DIVING)</span><span>80</span></div>
+      <div class="pts-row"><span>CHARGER (FORMATION)</span><span>50</span></div>
+      <div class="pts-row"><span>CONVOY  (FORMATION)</span><span>20-40</span></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>CONTROLS</h2>
+    <div class="controls-grid">
+      <span class="ctrl-key">← / Z</span><span class="ctrl-act">MOVE LEFT</span>
+      <span class="ctrl-key">→ / X</span><span class="ctrl-act">MOVE RIGHT</span>
+      <span class="ctrl-key">SPACE</span><span class="ctrl-act">FIRE</span>
+      <span class="ctrl-key">SPACE</span><span class="ctrl-act">START GAME</span>
+    </div>
+  </div>
+  <div class="press blink">— PRESS SPACE TO START —</div>
+</div>
+
+<div id="mission" class="hidden">
+  <div class="mission-title">★ MISSION BRIEFING ★</div>
+  <div class="mission-body">
+    WE ARE THE<br>
+    <span style="color:#ff0;font-size:1.5em;letter-spacing:4px">ARCADIANS!</span><br><br>
+    MISSION:<br>
+    <span style="color:#f00">DESTROY ALL ALIENS</span>
+  </div>
+  <div class="mission-pts">
+    <table>
+      <tr><td>CHARGER (DIVING)</td><td>100</td></tr>
+      <tr><td>CONVOY  (DIVING)</td><td>80</td></tr>
+      <tr><td>CHARGER (FORMATION)</td><td>50</td></tr>
+      <tr><td>CONVOY  (FORMATION)</td><td>20-40</td></tr>
+    </table>
+  </div>
+</div>
+
+<div id="gooverlay" class="hidden">
+  <div class="go-title">GAME OVER</div>
+  <div class="go-score">SCORE: <span id="goscore">000000</span></div>
+  <div class="go-form">
+    <label>ENTER YOUR NAME (3 LETTERS)</label>
+    <input id="initials" maxlength="3" value="AAA" autocomplete="off" spellcheck="false">
+    <button id="submitbtn">SUBMIT SCORE</button>
+    <div id="submitstatus"></div>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+<div id="scanlines"></div>
+
+<script>
+// ── API ───────────────────────────────────────────────────────────────────────
+const API=window.API_BASE||'/api';
+async function fetchScores(){
+  try{const r=await fetch(`${API}/scores`);return await r.json();}catch{return [];}
+}
+async function postScore(initials,score,wave){
+  try{
+    const r=await fetch(`${API}/scores`,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({initials:initials.substring(0,3).toUpperCase(),score,wave})});
+    return await r.json();
+  }catch{return null;}
+}
+function renderScores(scores){
+  const el=document.getElementById('scorelist');
+  if(!scores||!scores.length){
+    el.innerHTML='<div style="text-align:center;font-size:7px;color:#555">NO SCORES YET</div>';
+    return;
+  }
+  el.innerHTML=scores.slice(0,8).map((s,i)=>`
+    <div class="score-row">
+      <span class="rank">${String(i+1).padStart(2,'0')}.</span>
+      <span class="name">${(s.initials||'???').padEnd(3,' ')}</span>
+      <span class="pts">${String(s.score).padStart(7,'0')}</span>
+      <span class="wave">W${s.wave||1}</span>
+    </div>`).join('');
+}
+
+// ── SOUND ENGINE ─────────────────────────────────────────────────────────────
+// Galaxian-accurate sounds synthesised via Web Audio API.
+// All nodes are explicitly disconnected after use to prevent the node-leak
+// freeze that was killing the browser after ~60 seconds of play.
+let audioCtx=null;
+function getAudio(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  return audioCtx;
+}
+
+// Core primitive — creates osc+gain, schedules stop+disconnect to prevent leak
+function tone(freq,dur,type,vol,delay=0,freqEnd=null){
+  const ctx=getAudio();
+  const t=ctx.currentTime+delay;
+  const osc=ctx.createOscillator();
+  const gain=ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type=type;
+  osc.frequency.setValueAtTime(freq,t);
+  if(freqEnd) osc.frequency.linearRampToValueAtTime(freqEnd,t+dur);
+  gain.gain.setValueAtTime(vol,t);
+  gain.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  osc.start(t); osc.stop(t+dur+0.02);
+  // Disconnect after stop to free nodes — this is the freeze fix
+  osc.onended=()=>{ try{osc.disconnect();gain.disconnect();}catch(e){} };
+}
+
+// Noise burst for explosions — also cleaned up on end
+function noiseBurst(dur,vol,delay=0){
+  const ctx=getAudio();
+  const t=ctx.currentTime+delay;
+  const sr=ctx.sampleRate;
+  const len=Math.ceil(sr*dur);
+  const buf=ctx.createBuffer(1,len,sr);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,0.5);
+  const src=ctx.createBufferSource();
+  src.buffer=buf;
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(vol,t);
+  gain.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  src.connect(gain); gain.connect(ctx.destination);
+  src.start(t);
+  src.onended=()=>{ try{src.disconnect();gain.disconnect();}catch(e){} };
+}
+
+// Throttle tick sound — never fire more than once per 60ms
+let lastTickTime=0;
+
+// Intro music state — outside snd object so closures work cleanly
+const INTRO_MELODY=[
+  [440.0,200],[659.3,220],[440.0,120],[659.3,140],[698.5,140],
+  [440.0,140],[659.3,240],[440.0,100],[523.3,440],[587.3,220],
+  [392.0,120],[440.0,180],[659.3,340],[587.3,260],[523.3,100],
+  [493.9,100],[440.0,180],[440.0,280],[698.5,80],[523.3,100],
+  [880.0,100],[698.5,80],[440.0,220],[493.9,80],[587.3,100],
+  [784.0,80],[587.3,120],[440.0,100],[784.0,100],[587.3,120],
+  [523.3,80],[659.3,100],[880.0,100],[659.3,80],[523.3,140],
+  [440.0,160],[523.3,80],[659.3,100],[880.0,400],
+];
+let introTimers=[];
+let introPlaying=false;
+
+function playIntro(onComplete){
+  if(introPlaying) return;
+  introPlaying=true;
+  introTimers=[];
+  let delay=0;
+  for(const [freq,ms] of INTRO_MELODY){
+    const d=delay, t=ms/1000;
+    introTimers.push(setTimeout(()=>{ if(introPlaying) tone(freq,t*0.88,'square',0.14); },d));
+    delay+=ms;
+  }
+  // When music finishes, clear flag and fire callback
+  introTimers.push(setTimeout(()=>{
+    introPlaying=false;
+    if(onComplete) onComplete();
+  }, delay+100));
+}
+
+function stopIntro(){
+  introTimers.forEach(id=>clearTimeout(id));
+  introTimers=[];
+  introPlaying=false;
+}
+
+const snd={
+  shoot(){
+    tone(880,0.04,'square',0.15);
+    tone(440,0.06,'square',0.10,0.03);
+    tone(220,0.05,'square',0.06,0.07);
+  },
+  hitSmall(){
+    noiseBurst(0.12,0.20);
+    tone(180,0.10,'sawtooth',0.08,0.02);
+  },
+  hitBig(){
+    noiseBurst(0.22,0.30);
+    tone(100,0.18,'sawtooth',0.12,0.02);
+    tone(60,0.20,'square',0.08,0.05);
+  },
+  playerDie(){
+    // Big chunky explosion: layered noise bursts + deep descending tones
+    noiseBurst(0.08,0.40,0.00);  // initial crack
+    noiseBurst(0.30,0.50,0.06);  // main body
+    noiseBurst(0.40,0.30,0.20);  // rumble tail
+    // Deep low boom
+    tone(80, 0.35,'sawtooth',0.20,0.00);
+    tone(55, 0.40,'sawtooth',0.15,0.10);
+    tone(40, 0.50,'square',  0.10,0.20);
+    // High pitched initial crack
+    tone(600,0.04,'square',  0.12,0.00);
+    tone(300,0.06,'square',  0.08,0.03);
+  },
+  dive(){
+    tone(480,0.07,'square',0.10,0.00);
+    tone(360,0.07,'square',0.10,0.07);
+    tone(240,0.09,'square',0.10,0.14);
+  },
+  tick(step){
+    const now=getAudio().currentTime;
+    if(now-lastTickTime<0.06) return;
+    lastTickTime=now;
+    const freqs=[196,165,131,110];
+    tone(freqs[step%4],0.055,'square',0.08);
+  },
+  waveClear(){
+    const notes=[392,494,587,784,587,784,988];
+    notes.forEach((f,i)=>tone(f,0.10,'square',0.12,i*0.10));
+  },
+  start(){
+    const notes=[392,523,659,784];
+    notes.forEach((f,i)=>tone(f,0.07,'square',0.10,i*0.07));
+  },
+};
+
+
+// ── CANVAS ────────────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c');
+const G=canvas.getContext('2d');
+const W=320,H=240;
+canvas.width=W;canvas.height=H;
+function resize(){
+  const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
+  canvas.style.width=Math.floor(W*sc)+'px';
+  canvas.style.height=Math.floor(H*sc)+'px';
+}
+resize();
+window.addEventListener('resize',resize);
+
+// ── PALETTE ───────────────────────────────────────────────────────────────────
+const C={K:'#000',R:'#F00',G:'#0F0',Y:'#FF0',B:'#00F',M:'#F0F',T:'#0FF',W:'#FFF'};
+
+// ── PIXEL DRAWING HELPERS ─────────────────────────────────────────────────────
+const r=(x,y,w,h,c)=>{G.fillStyle=c;G.fillRect(x,y,w,h);};
+
+// ── SPRITES — pixel-faithful to original BBC Arcadians screenshot ─────────────
+
+// Convoy alien (blue, rows 2-5) — wing-flapping 2-frame
+// Frame 0: wings level, Frame 1: wings up
+function drawConvoy(cx,cy,f){
+  const B=C.B, Y=C.Y, W=C.W, K=C.K;
+  if(f===0){
+    // antennae
+    r(cx-2,cy-6,2,2,B); r(cx+1,cy-6,2,2,B);
+    // body
+    r(cx-3,cy-4,6,2,B);
+    // wide body + wing roots
+    r(cx-5,cy-2,10,2,B);
+    // wings out wide
+    r(cx-8,cy,6,2,B); r(cx+3,cy,6,2,B);
+    // body lower
+    r(cx-3,cy,6,2,B);
+    // red centre eye
+    r(cx-1,cy-1,3,2,C.R);
+    // wing tips with yellow
+    r(cx-8,cy+2,2,2,Y); r(cx+7,cy+2,2,2,Y);
+    // body tail
+    r(cx-2,cy+2,5,2,B);
+  } else {
+    // antennae spread
+    r(cx-3,cy-6,2,2,B); r(cx+2,cy-6,2,2,B);
+    // body
+    r(cx-3,cy-4,6,2,B);
+    r(cx-5,cy-2,10,2,B);
+    // wings angled up
+    r(cx-7,cy-1,4,2,B); r(cx+4,cy-1,4,2,B);
+    // body lower
+    r(cx-3,cy,6,2,B);
+    // red eye
+    r(cx-1,cy-1,3,2,C.R);
+    // yellow tips
+    r(cx-9,cy-2,2,2,Y); r(cx+8,cy-2,2,2,Y);
+    // tail
+    r(cx-2,cy+2,5,2,B);
+  }
+}
+
+// Charger alien (top 2 rows) — large flagship, red body, blue wings, yellow accents
+function drawCharger(cx,cy,f){
+  const B=C.B, Y=C.Y, R=C.R, W=C.W;
+  // Blue wing antennae — always present
+  r(cx-4,cy-7,2,3,B); r(cx+3,cy-7,2,3,B);
+  // Central red head
+  r(cx-3,cy-5,6,3,R);
+  // Yellow highlights on head
+  r(cx-1,cy-4,3,2,Y);
+  // Main red body
+  r(cx-5,cy-2,10,4,R);
+  if(f===0){
+    // Blue wings spread wide
+    r(cx-10,cy-2,5,2,B); r(cx+6,cy-2,5,2,B);
+    // Wing lower
+    r(cx-9,cy,4,2,B); r(cx+6,cy,4,2,B);
+    // wing tips droop
+    r(cx-8,cy+2,3,2,B); r(cx+6,cy+2,3,2,B);
+  } else {
+    // Wings raised
+    r(cx-10,cy-4,5,2,B); r(cx+6,cy-4,5,2,B);
+    r(cx-9,cy-2,4,2,B); r(cx+6,cy-2,4,2,B);
+    r(cx-7,cy,3,2,B); r(cx+5,cy,3,2,B);
+  }
+  // Yellow belly stripe
+  r(cx-3,cy,6,2,Y);
+  // Lower red body
+  r(cx-4,cy+2,8,2,R);
+}
+
+function drawPlayer(cx,cy){
+  // Faithful to screenshot: yellow nose cone, blue body, red base/engines
+  // Nose (yellow)
+  r(cx-1,cy-12,2,2,C.Y);
+  r(cx-1,cy-10,2,6,C.Y);
+  // Upper hull (blue)
+  r(cx-4,cy-7,8,3,C.B);
+  r(cx-6,cy-4,12,3,C.B);
+  // Main body (blue)
+  r(cx-8,cy-1,16,4,C.B);
+  // Lower body widens (blue)
+  r(cx-9,cy+3,18,2,C.B);
+  // Engine pods (red)
+  r(cx-9,cy+5,5,3,C.R);
+  r(cx+5,cy+5,5,3,C.R);
+  // Centre engine bottom (red)
+  r(cx-3,cy+5,6,2,C.R);
+  // Yellow engine highlights
+  r(cx-8,cy+6,2,2,C.Y); r(cx+7,cy+6,2,2,C.Y);
+}
+
+function drawExplosion(x,y,f,big){
+  if(big){
+    // Player ship explosion — debris flies outward over 12 frames
+    // Use frame as seed for deterministic debris positions
+    const cols=[C.W,C.W,C.Y,C.Y,'#F80','#F80',C.R,C.R,'#800','#600','#400','#200'];
+    const c=cols[Math.min(f,cols.length-1)];
+    const scale=[0,1,2,3,4,5,6,6,5,4,3,2][Math.min(f,11)];
+    if(scale===0)return;
+
+    // Central flash
+    if(f<4){
+      G.fillStyle=C.W;
+      G.fillRect(x-scale*2,y-scale*2,scale*4,scale*4);
+    }
+
+    // Debris chunks — 8 pieces flying outward
+    // Positions seeded by frame so they animate outward
+    const debris=[
+      [-1,-1],[1,-1],[0,-1],[-1,0],[1,0],[-1,1],[1,1],[0,1],
+      [-2,-1],[2,-1],[-2,1],[2,1],
+    ];
+    debris.forEach(([dx,dy],i)=>{
+      G.fillStyle=i%3===0?C.Y:i%3===1?C.R:'#F80';
+      const ox=dx*scale*2.2;
+      const oy=dy*scale*2.2;
+      const sz=Math.max(1,3-Math.floor(f/4));
+      G.fillRect(x+ox-sz,y+oy-sz,sz*2,sz*2);
+    });
+
+    // Ship fragment colours (yellow/blue/red matching ship)
+    if(f<6){
+      // Show broken ship parts scattering
+      G.fillStyle=f<3?C.Y:C.R;
+      G.fillRect(x-scale*1.5-2,y-2,4,2); // left chunk
+      G.fillRect(x+scale*1.5-2,y-2,4,2); // right chunk
+      G.fillStyle=C.B;
+      G.fillRect(x-2,y-scale-2,4,3);      // top chunk
+      G.fillRect(x-3,y+scale-1,6,2);      // bottom chunk
+    }
+
+    // Expanding ring
+    if(f>1&&f<9){
+      G.strokeStyle=c;
+      G.lineWidth=1;
+      G.beginPath();
+      G.arc(x,y,scale*3,0,Math.PI*2);
+      G.stroke();
+    }
+  } else {
+    // Small alien explosion
+    const cols=[C.W,C.Y,C.Y,'#F80',C.R,'#800'];
+    const c=cols[Math.min(f,cols.length-1)];
+    const sz=[2,4,6,5,4,2][Math.min(f,5)];
+    r(x-sz,y-sz,sz*2,sz*2,c);
+    if(f<3){
+      r(x-1,y-sz-3,2,3,C.W);r(x-1,y+sz,2,3,C.W);
+      r(x-sz-3,y-1,3,2,C.W);r(x+sz,y-1,3,2,C.W);
+    }
+  }
+}
+
+// ── GAME STATE ────────────────────────────────────────────────────────────────
+const ROWS=5,COLS=10;
+// Row definitions [type, colour]: type 1=charger (top), 0=convoy
+const ROW_DEF=[
+  {t:1,c:C.Y},{t:1,c:C.M},
+  {t:0,c:C.T},{t:0,c:C.G},{t:0,c:C.R}
+];
+const FORM={x0:22,y0:30,dx:28,dy:18};
+
+let gameState='title';
+let score=0,hiScore=0,lives=3,wave=1;
+let px=W/2; // player x
+let pBullet=null; // {x,y}
+let aliens=[],divers=[],iBullets=[],explosions=[];
+let formOff=0,formDir=1,formSpd=14;
+let animF=0,tickT=0.5,tickStep=0;
+let shootT=0,shootIv=1.6;
+let diveT=0,diveIv=3.0;
+let stateT=0,deadT=0,diveWarmup=3.0;
+let waveEnding=false;
+let spaceDown=false,spaceEaten=false;
+
+const STARS=Array.from({length:55},()=>({
+  x:Math.random()*W,y:Math.random()*H,
+  spd:Math.random()*0.5+0.1,b:Math.ceil(Math.random()*3)
+}));
+
+// Keys
+const K={};
+document.addEventListener('keydown',e=>{
+  K[e.code]=true;
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(!spaceEaten){spaceDown=true;spaceEaten=true;}
+  }
+});
+document.addEventListener('keyup',e=>{
+  K[e.code]=false;
+  if(e.code==='Space'){spaceEaten=false;spaceDown=false;}
+});
+
+function makeAliens(){
+  aliens=[];
+  for(let row=0;row<ROWS;row++){
+    for(let col=0;col<COLS;col++){
+      const def=ROW_DEF[row];
+      aliens.push({
+        row,col,alive:true,diving:false,
+        type:def.t,clr:def.c,frame:0,
+        // formation position computed dynamically via formOff
+        // dive state
+        dx:0,dy:0,dvx:0,dvy:0,
+      });
+    }
+  }
+  divers=[];iBullets=[];
+  formOff=0;formDir=1;
+  formSpd=14+wave*1.5;
+  shootIv=Math.max(0.5,1.6-wave*0.12);
+  diveIv=Math.max(0.8,3.0-wave*0.18);
+  waveEnding=false;
+  diveWarmup=3.0;
+}
+
+function fx(a){return FORM.x0+a.col*FORM.dx+formOff;}
+function fy(a){return FORM.y0+a.row*FORM.dy;}
+
+function aliveFormation(){return aliens.filter(a=>a.alive&&!a.diving);}
+
+function launchDive(){
+  const pool=aliveFormation();
+  if(!pool.length)return;
+  // Pick leader — prefer chargers 65% of the time
+  const chargers=pool.filter(a=>a.type===1);
+  const useCharger=chargers.length>0&&Math.random()<0.65;
+  const candidates=useCharger?chargers:pool;
+  const leader=candidates[Math.floor(Math.random()*candidates.length)];
+  if(!leader)return;
+
+  const group=[leader];
+  // 40% chance of a wingman on the same row
+  if(Math.random()<0.4&&pool.length>2){
+    const wings=pool.filter(a=>a!==leader&&a.row===leader.row&&Math.abs(a.col-leader.col)<=2);
+    if(wings.length)group.push(wings[Math.floor(Math.random()*wings.length)]);
+  }
+
+  group.forEach(a=>{
+    a.diving=true;
+    a.dx=fx(a); a.dy=fy(a);
+    const targetX=px+(Math.random()-0.5)*50;
+    const diffX=targetX-a.dx;
+    const diffY=H-a.dy;
+    const dist=Math.sqrt(diffX*diffX+diffY*diffY)||1;
+    const spd=55+wave*4;
+    a.dvx=diffX/dist*spd;
+    a.dvy=Math.max(40,Math.abs(diffY/dist)*spd);
+    divers.push(a);
+  });
+  snd.dive();
+}
+
+function startGame(){
+  score=0;lives=3;wave=1;
+  px=W/2;pBullet=null;explosions=[];
+  makeAliens();
+  gameState='mission';
+  stateT=3.5;
+  stopIntro();
+  clearTimeout(snd.introHandle);
+  snd.start();
+  document.getElementById('mission').classList.remove('hidden');
+}
+
+function nextWave(){
+  wave++;
+  px=W/2;pBullet=null;explosions=[];
+  makeAliens();
+  gameState='playing';
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────────
+let lastTs=0;
+function update(ts){
+  const dt=Math.min((ts-lastTs)/1000,0.05);
+  lastTs=ts;
+
+  // Stars always scroll
+  STARS.forEach(s=>{s.y+=s.spd;if(s.y>H){s.y=0;s.x=Math.random()*W;}});
+
+  // Explosions tick
+  explosions=explosions.filter(e=>{e.t+=dt;e.f=Math.floor(e.t/(e.big?0.10:0.06));return e.big?e.f<12:e.f<6;});
+
+  if(gameState==='title')return;
+
+  if(gameState==='mission'){
+    stateT-=dt;
+    if(stateT<=0){
+      document.getElementById('mission').classList.add('hidden');
+      gameState='playing';
+    }
+    return;
+  }
+
+  if(gameState==='dead'){
+    deadT-=dt;
+    if(deadT<=0){
+      if(lives<=0){
+        gameState='gameover';
+        document.getElementById('gooverlay').classList.remove('hidden');
+        document.getElementById('goscore').textContent=String(score).padStart(6,'0');
+        setTimeout(()=>document.getElementById('initials').focus(),100);
+      } else {
+        pBullet=null;iBullets=[];
+        divers.forEach(a=>{a.diving=false;});
+        divers=[];
+        diveWarmup=2.0;
+        gameState='playing';
+      }
+    }
+    return;
+  }
+
+  if(gameState==='gameover')return;
+
+  // ── playing ──
+
+  // Formation tick + animation
+  tickT-=dt;
+  if(tickT<=0){
+    const n=aliveFormation().length+divers.length;
+    tickT=Math.max(0.08,0.4-n*0.003);
+    snd.tick(tickStep++);
+    animF^=1;
+    aliens.forEach(a=>{if(a.alive&&!a.diving)a.frame=animF;});
+  }
+
+  // Formation sweep — avoid spread operator on potentially large array
+  const af=aliveFormation();
+  if(af.length){
+    formOff+=formDir*formSpd*dt;
+    let lx=af[0].col*FORM.dx+FORM.x0+formOff;
+    let rx=lx;
+    for(const a of af){
+      const ax=fx(a);
+      if(ax<lx)lx=ax;
+      if(ax>rx)rx=ax;
+    }
+    if(rx>W-14&&formDir>0)formDir=-1;
+    if(lx<14&&formDir<0)formDir=1;
+  }
+
+  // Player move
+  if((K['ArrowLeft']||K['KeyZ'])&&px>13)px-=105*dt;
+  if((K['ArrowRight']||K['KeyX'])&&px<W-13)px+=105*dt;
+
+  // Player shoot
+  if(spaceDown){
+    spaceDown=false;
+    if(!pBullet&&gameState==='playing'){
+      pBullet={x:px,y:H-22};
+      snd.shoot();
+    }
+  }
+
+  // Player bullet — collect hits first, apply after, never call killPlayer inside filter
+  let playerHit=false;
+  if(pBullet){
+    pBullet.y-=230*dt;
+    if(pBullet.y<0){
+      pBullet=null;
+    } else {
+      // vs formation
+      let hit=false;
+      for(const a of af){
+        const ax=fx(a),ay=fy(a);
+        if(Math.abs(pBullet.x-ax)<11&&Math.abs(pBullet.y-ay)<10){
+          a.alive=false;
+          const pts=a.type===1?50:10+wave*5;
+          score+=pts;if(score>hiScore)hiScore=score;
+          explosions.push({x:ax,y:ay,t:0,f:0});
+          snd.hitSmall();pBullet=null;hit=true;break;
+        }
+      }
+      // vs divers
+      if(!hit){
+        for(let i=divers.length-1;i>=0;i--){
+          const a=divers[i];
+          if(Math.abs(pBullet.x-a.dx)<11&&Math.abs(pBullet.y-a.dy)<10){
+            a.alive=false;a.diving=false;
+            const pts=a.type===1?100:80;
+            score+=pts;if(score>hiScore)hiScore=score;
+            explosions.push({x:a.dx,y:a.dy,t:0,f:0});
+            snd.hitBig();
+            divers.splice(i,1);pBullet=null;break;
+          }
+        }
+      }
+    }
+  }
+
+  // Diver movement — work on snapshot to avoid splice-while-iterate issues
+  const diversSnapshot=divers.slice();
+  for(const a of diversSnapshot){
+    if(!a.diving) continue; // may have been removed already
+    a.dx+=a.dvx*dt;
+    a.dy+=a.dvy*dt;
+    // Gentle curve toward player
+    a.dvx+=(px-a.dx)*0.3*dt;
+    // Randomly shoot
+    if(Math.random()<dt*1.2)
+      iBullets.push({x:a.dx,y:a.dy,vy:80+wave*4});
+    // Off bottom — rejoin formation
+    if(a.dy>H+16){
+      a.diving=false;
+      const idx=divers.indexOf(a);
+      if(idx>=0)divers.splice(idx,1);
+    }
+    // Diver reaches player row — flag hit (handle after loop)
+    if(a.dy>H-28&&Math.abs(a.dx-px)<15){
+      playerHit=true;
+    }
+  }
+
+  // Launch dive
+  diveWarmup-=dt;
+  diveT-=dt;
+  if(diveT<=0&&diveWarmup<=0&&divers.length===0&&af.length>0){
+    launchDive();
+    diveT=diveIv+Math.random()*1.5;
+  }
+
+  // Formation shoot
+  shootT-=dt;
+  if(shootT<=0&&af.length>0){
+    const byCol={};
+    for(const a of af){
+      if(!byCol[a.col]||a.row>byCol[a.col].row)byCol[a.col]=a;
+    }
+    const bottoms=Object.values(byCol);
+    const s=bottoms[Math.floor(Math.random()*bottoms.length)];
+    iBullets.push({x:fx(s),y:fy(s),vy:65+wave*4});
+    shootT=Math.max(0.3,shootIv)+Math.random()*0.5;
+  }
+
+  // Invader bullets — never mutate gameState inside filter
+  let bulletHit=false;
+  iBullets=iBullets.filter(b=>{
+    b.y+=b.vy*dt;
+    if(b.y>H)return false;
+    if(!bulletHit&&Math.abs(b.x-px)<13&&Math.abs(b.y-(H-14))<11){
+      bulletHit=true;
+      return false;
+    }
+    return true;
+  });
+
+  // Apply all player hits exactly once, outside any loop/filter
+  if((bulletHit||playerHit)&&gameState==='playing'){
+    killPlayer();
+  }
+
+  // Wave complete? Guard with gameState check
+  if(gameState==='playing'){
+    const total=aliens.filter(a=>a.alive).length+divers.length;
+    if(total===0&&!waveEnding){
+      waveEnding=true;
+      snd.waveClear();
+      setTimeout(()=>{ if(gameState==='playing'||gameState==='dead') nextWave(); },2200);
+    }
+  }
+}
+
+function killPlayer(){
+  if(gameState!=='playing')return;
+  lives--;
+  explosions.push({x:px,y:H-14,t:0,f:0,big:true});
+  snd.playerDie();
+  pBullet=null;
+  gameState='dead';
+  deadT=2.2;
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────────
+function draw(){
+  G.fillStyle=C.K;G.fillRect(0,0,W,H);
+
+  // Stars
+  STARS.forEach(s=>{
+    G.fillStyle=s.b===1?'#333':s.b===2?'#666':'#aaa';
+    G.fillRect(s.x,s.y,1,1);
+  });
+
+  // HUD
+  G.fillStyle=C.Y;G.font='6px "Press Start 2P"';G.textAlign='left';
+  G.fillText('1UP',4,8);
+  G.fillStyle=C.W;G.fillText(String(score).padStart(6,'0'),4,17);
+  G.fillStyle=C.Y;G.textAlign='center';
+  G.fillText('HI-SCORE',W/2,8);
+  G.fillStyle=C.W;G.fillText(String(hiScore).padStart(6,'0'),W/2,17);
+  G.fillStyle=C.Y;G.textAlign='right';
+  G.fillText(`WAVE ${wave}`,W-4,8);
+  G.fillStyle=C.T;G.fillText(`♥ ${lives}`,W-4,17);
+  G.textAlign='left';
+
+  // Ground
+  G.fillStyle=C.G;G.fillRect(0,H-5,W,2);
+
+  // Reserve ships — small yellow/red icons like original
+  for(let i=0;i<Math.max(0,lives-(gameState==='dead'?1:0));i++){
+    const sx=6+i*16;const sy=H-6;
+    G.fillStyle=C.Y; G.fillRect(sx-1,sy-4,2,4);   // nose
+    G.fillStyle=C.B; G.fillRect(sx-3,sy-2,6,2);   // hull
+    G.fillStyle=C.R; G.fillRect(sx-4,sy,8,3);      // base
+  }
+
+  // Formation aliens
+  aliveFormation().forEach(a=>{
+    const ax=fx(a),ay=fy(a);
+    if(a.type===1)drawCharger(ax,ay,a.frame);
+    else drawConvoy(ax,ay,a.frame);
+  });
+
+  // Divers — flash between yellow/white to stand out
+  const flash=Math.floor(Date.now()/80)%2;
+  divers.forEach(a=>{
+    if(!a.alive)return;
+    const dc=flash?C.W:C.Y;
+    if(a.type===1)drawCharger(a.dx,a.dy,flash);
+    else drawConvoy(a.dx,a.dy,flash);
+  });
+
+  // Player
+  if(gameState==='playing')drawPlayer(px,H-14);
+  // During death, briefly show player at half-opacity before explosion takes over
+  if(gameState==='dead'&&deadT>1.9){
+    G.globalAlpha=Math.min(1,(deadT-1.9)*10);
+    drawPlayer(px,H-14);
+    G.globalAlpha=1.0;
+  }
+
+  // Player bullet
+  if(pBullet){
+    G.fillStyle=C.W;G.fillRect(pBullet.x-1,pBullet.y,1,6);
+  }
+
+  // Invader bullets — zigzag
+  iBullets.forEach(b=>{
+    G.fillStyle=C.R;
+    const z=Math.floor(b.y/3)%2?1:-1;
+    G.fillRect(b.x-1+z,b.y,2,5);
+  });
+
+  // Explosions
+  explosions.forEach(e=>drawExplosion(e.x,e.y,e.f,e.big));
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────────
+function loop(ts){
+  update(ts);draw();
+  requestAnimationFrame(loop);
+}
+
+// ── TITLE SPACEBAR ────────────────────────────────────────────────────────────
+// First space press starts intro music; game auto-starts when music finishes.
+// Any subsequent space press skips straight to the game.
+let introStarted=false;
+document.addEventListener('keydown',e=>{
+  if(gameState==='title'){
+    e.preventDefault();
+    if(!introStarted){
+      // First press — play music then auto-start
+      introStarted=true;
+      playIntro(()=>{
+        // Music finished — start game automatically
+        if(gameState==='title'){
+          document.getElementById('overlay').classList.add('hidden');
+          startGame();
+        }
+      });
+    } else if(e.code==='Space'){
+      // Second press during music — skip straight to game
+      stopIntro();
+      document.getElementById('overlay').classList.add('hidden');
+      startGame();
+    }
+  }
+});
+
+// ── GAME OVER FORM ────────────────────────────────────────────────────────────
+document.getElementById('initials').addEventListener('input',e=>{
+  e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,'').substring(0,3);
+});
+document.getElementById('submitbtn').addEventListener('click',async()=>{
+  const ini=document.getElementById('initials').value.toUpperCase().padEnd(3,'A').substring(0,3);
+  const st=document.getElementById('submitstatus');
+  st.textContent='SUBMITTING...';st.style.color='#ff0';
+  const res=await postScore(ini,score,wave);
+  if(res){
+    st.textContent='SCORE SAVED!';st.style.color='#0f0';
+    setTimeout(async()=>{
+      document.getElementById('gooverlay').classList.add('hidden');
+      const scores=await fetchScores();
+      renderScores(scores);
+      document.getElementById('overlay').classList.remove('hidden');
+      gameState='title';
+      introStarted=false;
+    },1500);
+  }else{
+    st.textContent='SERVER OFFLINE';st.style.color='#f00';
+    setTimeout(()=>{
+      document.getElementById('gooverlay').classList.add('hidden');
+      document.getElementById('overlay').classList.remove('hidden');
+      gameState='title';
+      introStarted=false;
+    },2000);
+  }
+});
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+(async()=>{
+  const scores=await fetchScores();
+  renderScores(scores);
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
