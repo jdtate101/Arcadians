@@ -1,6 +1,8 @@
 # ARCADIANS — BBC Micro Edition
 ## A Galaxian-style retro game demo on OpenShift
 
+![Game](arcade.png)
+
 Faithful clone of the 1982 Acornsoft Arcadians (BBC Micro) — itself a clone of Namco's Galaxian.
 Features swooping dive-bombing aliens, authentic BBC palette, extracted original intro music,
 and a PostgreSQL high score table. Built as a full Kubernetes demo stack on OpenShift.
