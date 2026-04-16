@@ -6,6 +6,8 @@ Features swooping dive-bombing aliens, four alien ranks with escort dive rules, 
 audio extracted from the original game binary, and a PostgreSQL high score table. Built as a
 full Kubernetes demo stack on OpenShift.
 
+![Game](arcade.png)
+
 ---
 
 ### Stack
