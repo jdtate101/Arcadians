@@ -8,6 +8,8 @@ full Kubernetes demo stack on OpenShift.
 
 ![Game](arcade.png)
 
+ UPDATE: NOW WORKS WITH USB CONTROLLERS SUCH AS XBOX
+
 ---
 
 ### Stack
