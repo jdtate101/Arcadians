@@ -595,7 +595,9 @@ let diveT=0,diveIv=3.0;
 let stateT=0,deadT=0,diveWarmup=3.0;
 let waveEnding=false;
 let spaceDown=false,spaceEaten=false;
-let nextLifeScore=10000; // extra life every 10000 pts
+let nextLifeScore=10000;
+let gamepadIndex=null;
+let gpFireEaten=false; // extra life every 10000 pts
 
 const STARS=Array.from({length:80},()=>({
   x:Math.random()*W,y:Math.random()*H,
@@ -616,6 +618,15 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>{
   K[e.code]=false;
   if(e.code==='Space'){spaceEaten=false;spaceDown=false;}
+});
+
+// ── GAMEPAD ───────────────────────────────────────────────────────────────────
+window.addEventListener('gamepadconnected',e=>{
+  gamepadIndex=e.gamepad.index;
+  console.log('Gamepad connected:',e.gamepad.id);
+});
+window.addEventListener('gamepaddisconnected',e=>{
+  if(e.gamepad.index===gamepadIndex) gamepadIndex=null;
 });
 
 function makeAliens(){
@@ -795,11 +806,17 @@ function update(ts){
     if(lx<14&&formDir<0)formDir=1;
   }
 
-  // Player move
-  if((K['ArrowLeft']||K['KeyZ'])&&px>24)px-=210*dt;
-  if((K['ArrowRight']||K['KeyX'])&&px<W-24)px+=210*dt;
+  // Poll gamepad (snapshot API — must be done every frame)
+  const gp=gamepadIndex!==null?navigator.getGamepads()[gamepadIndex]:null;
+  const gpLeft =gp&&(gp.buttons[14].pressed||gp.axes[0]<-0.3);
+  const gpRight=gp&&(gp.buttons[15].pressed||gp.axes[0]> 0.3);
+  const gpFire =gp&&gp.buttons[1].pressed;
 
-  // Player shoot
+  // Player move — keyboard OR gamepad D-pad / left stick
+  if((K['ArrowLeft']||K['KeyZ']||gpLeft) &&px>24)px-=210*dt;
+  if((K['ArrowRight']||K['KeyX']||gpRight)&&px<W-24)px+=210*dt;
+
+  // Player shoot — keyboard space OR gamepad B button (edge-detected)
   if(spaceDown){
     spaceDown=false;
     if(!pBullet&&gameState==='playing'){
@@ -807,6 +824,13 @@ function update(ts){
       snd.shoot();
     }
   }
+  // Gamepad fire — B button (button index 1), edge-detected
+  if(gpFire&&!gpFireEaten&&!pBullet&&gameState==='playing'){
+    pBullet={x:px,y:H-44};
+    snd.shoot();
+    gpFireEaten=true;
+  }
+  if(gp&&!gpFire) gpFireEaten=false;
 
   // Player bullet — collect hits first, apply after, never call killPlayer inside filter
   let playerHit=false;
@@ -1051,28 +1075,44 @@ function loop(ts){
 // First space press starts intro music; game auto-starts when music finishes.
 // Any subsequent space press skips straight to the game.
 let introStarted=false;
+
+function titleAction(){
+  if(!introStarted){
+    introStarted=true;
+    playIntro(()=>{
+      if(gameState==='title'){
+        document.getElementById('overlay').classList.add('hidden');
+        startGame();
+      }
+    });
+  } else {
+    stopIntro();
+    document.getElementById('overlay').classList.add('hidden');
+    startGame();
+  }
+}
+
 document.addEventListener('keydown',e=>{
   initAudioPools();
   if(gameState==='title'){
     e.preventDefault();
-    if(!introStarted){
-      // First press — play music then auto-start
-      introStarted=true;
-      playIntro(()=>{
-        // Music finished — start game automatically
-        if(gameState==='title'){
-          document.getElementById('overlay').classList.add('hidden');
-          startGame();
-        }
-      });
-    } else if(e.code==='Space'){
-      // Second press during music — skip straight to game
-      stopIntro();
-      document.getElementById('overlay').classList.add('hidden');
-      startGame();
-    }
+    titleAction();
   }
 });
+
+// Gamepad title screen polling — any button triggers titleAction
+let gpStartEaten=false;
+(function pollGPTitle(){
+  if(gameState==='title'){
+    const g=gamepadIndex!==null?navigator.getGamepads()[gamepadIndex]:null;
+    if(g){
+      const any=g.buttons.some(b=>b.pressed);
+      if(any&&!gpStartEaten){ gpStartEaten=true; titleAction(); }
+      if(!any) gpStartEaten=false;
+    }
+  } else { gpStartEaten=false; }
+  requestAnimationFrame(pollGPTitle);
+})();
 
 // ── GAME OVER FORM ────────────────────────────────────────────────────────────
 document.getElementById('initials').addEventListener('input',e=>{
